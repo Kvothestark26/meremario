@@ -29,6 +29,13 @@ print("Negros:", negros)
 print("Blancos:", blancos)
 print("Total:", negros + blancos)
 
+'''
+Tamaño del QR: 41 x 41
+Negros: 558
+Blancos: 1123
+Total: 1681
+'''
+
 
 img = qr.make_image()
 img.save("qr.png")
