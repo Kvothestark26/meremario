@@ -1,0 +1,1170 @@
+let db;
+const request = indexedDB.open("MiArmarioDB", 2);
+
+request.onupgradeneeded = function(event) {
+    db = event.target.result;
+    if (!db.objectStoreNames.contains("clothes")) db.createObjectStore("clothes", { keyPath: "id", autoIncrement: true });
+    if (!db.objectStoreNames.contains("outfits")) db.createObjectStore("outfits", { keyPath: "id", autoIncrement: true });
+};
+
+request.onsuccess = function(event) {
+    db = event.target.result;
+    initApp();
+};
+
+let currentImgs = { prenda: [], outfit: [] };
+let globalItems = { clothes: [], outfits: [] };
+let editingId = { prenda: null, outfit: null };
+let selectionMode = false;
+let selectedItems = new Set();
+let currentTabType = 'clothes';
+let currentOutfitRating = 0;
+let activeFilters = { wardrobe: '', outfits: '' };
+let previousTabName = 'wardrobe'; 
+
+// Arrays para la nueva lógica de vincular prendas
+let currentSelectedClothes = [];
+let tempSelectedClothes = [];
+
+// --- INICIALIZACIÓN Y TEMAS ---
+function initApp() {
+    loadCustomTypes();
+    loadWardrobe();
+    loadOutfits();
+    setupModalOutsideClose();
+    
+    const savedTheme = localStorage.getItem('app-theme') || 'default';
+    const isDark = localStorage.getItem('app-dark') === 'true';
+    setTheme(savedTheme, isDark);
+}
+
+function setTheme(theme, dark = null) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('app-theme', theme);
+    
+    // Resaltar botón activo
+    document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.getElementById(`theme-btn-${theme}`);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    if(dark !== null) {
+        if(dark) document.body.classList.add('dark-mode');
+        else document.body.classList.remove('dark-mode');
+    }
+    updateDarkIcon();
+}
+
+function toggleDarkMode() {
+    document.body.classList.toggle('dark-mode');
+    localStorage.setItem('app-dark', document.body.classList.contains('dark-mode'));
+    updateDarkIcon();
+}
+
+function updateDarkIcon() {
+    const icon = document.getElementById('dark-mode-icon');
+    if(icon) icon.innerText = document.body.classList.contains('dark-mode') ? 'dark_mode' : 'light_mode';
+}
+
+// --- TIPOS DE PRENDA DINÁMICOS ---
+function loadCustomTypes() {
+    const customTypes = JSON.parse(localStorage.getItem('customTypes') || '[]');
+    const select = document.getElementById('type-prenda');
+    
+    let html = `
+        <option value="">Tipo de prenda...</option>
+        <option value="Camisetas/Tops">Camisetas / Tops</option>
+        <option value="Abrigos">Abrigos</option>
+        <option value="Zapatos">Zapatos</option>
+        <option value="Accesorios">Accesorios / Joyas / Diademas</option>
+    `;
+    customTypes.forEach(t => html += `<option value="${t}">${t}</option>`);
+    html += `<option value="nuevo_tipo_add">+ Añadir nuevo tipo...</option>`;
+    
+    select.innerHTML = html;
+}
+
+function handleNewType(selectElem) {
+    if(selectElem.value === "nuevo_tipo_add") {
+        const newType = prompt("Escribe el nombre del nuevo tipo de prenda:");
+        if(newType && newType.trim() !== "") {
+            const customTypes = JSON.parse(localStorage.getItem('customTypes') || '[]');
+            customTypes.push(newType.trim());
+            localStorage.setItem('customTypes', JSON.stringify(customTypes));
+            loadCustomTypes();
+            selectElem.value = newType.trim();
+        } else {
+            selectElem.value = "";
+        }
+    }
+}
+
+// --- NAVEGACIÓN INTELIGENTE Y AUTOGUARDADO ---
+function switchTab(tabName, element) {
+    // Autoguardado si nos vamos de la pestaña 'add'
+    const isCurrentlyAdd = document.getElementById('view-add').classList.contains('active');
+    if (isCurrentlyAdd && tabName !== 'add') {
+        autoSaveIfValid();
+    }
+
+    if (tabName !== 'add') previousTabName = tabName; 
+    
+    document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+    document.getElementById(`view-${tabName}`).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    
+    if (element) {
+        element.classList.add('active');
+    } else {
+        const fallbackNav = document.getElementById(`nav-${tabName}`);
+        if(fallbackNav) fallbackNav.classList.add('active');
+    }
+    
+    currentTabType = tabName === 'outfits' ? 'outfits' : 'clothes';
+    clearSelection();
+}
+
+function autoSaveIfValid() {
+    const isPrendaActive = document.getElementById('toggle-prenda').classList.contains('active');
+    if (isPrendaActive) {
+        const name = document.getElementById('name-prenda').value;
+        if (name && currentImgs.prenda.length > 0) savePrenda(true);
+    } else {
+        const name = document.getElementById('name-outfit').value;
+        if (name && currentImgs.outfit.length > 0) saveOutfit(true);
+    }
+}
+
+function handleFabClick(element) {
+    // Siempre resetear el formulario si el usuario toca el botón '+' de abajo para algo nuevo
+    resetForm('prenda');
+    resetForm('outfit');
+    
+    switchTab('add', element);
+    if (previousTabName === 'outfits') switchForm('outfit');
+    else switchForm('prenda');
+}
+
+function switchForm(type) {
+    document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
+    const targetedBtn = document.getElementById(`toggle-${type}`);
+    if(targetedBtn) targetedBtn.classList.add('active');
+    
+    document.getElementById('form-prenda').style.display = type === 'prenda' ? 'flex' : 'none';
+    document.getElementById('form-outfit').style.display = type === 'outfit' ? 'flex' : 'none';
+    
+    if(type === 'outfit') renderSelectedClothesPreview();
+}
+
+const normalizeStr = (str) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : "";
+
+// --- SELECCIÓN AVANZADA DE COLOR (RUEDA) ---
+function updateColorFromPicker(hex) {
+    document.getElementById('color-prenda').value = hex;
+    document.getElementById('color-hex-input').value = hex.toUpperCase();
+    
+    // Calcular RGB
+    const r = parseInt(hex.slice(1, 3), 16) || 0;
+    const g = parseInt(hex.slice(3, 5), 16) || 0;
+    const b = parseInt(hex.slice(5, 7), 16) || 0;
+    document.getElementById('color-rgb-input').value = `${r}, ${g}, ${b}`;
+}
+
+function updateColorFromText(type) {
+    if(type === 'hex') {
+        let val = document.getElementById('color-hex-input').value.trim();
+        if(/^#[0-9A-F]{6}$/i.test(val)) {
+            updateColorFromPicker(val);
+        }
+    } else if(type === 'rgb') {
+        let val = document.getElementById('color-rgb-input').value;
+        let parts = val.split(',').map(p => parseInt(p.trim()));
+        if(parts.length === 3 && parts.every(p => !isNaN(p) && p >= 0 && p <= 255)) {
+            let hex = "#" + parts.map(p => p.toString(16).padStart(2, '0')).join('');
+            updateColorFromPicker(hex);
+        }
+    }
+}
+
+// --- FOTOS Y PREVISUALIZACIONES EN EDICIÓN ---
+function previewImages(input, containerId, iconId, textId, type) {
+    const files = input.files;
+    if(files.length > 0) {
+        let loaded = 0;
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                currentImgs[type].push(e.target.result);
+                loaded++;
+                if (loaded === files.length) {
+                    renderEditPreviews(type);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+}
+
+// MEJORA: Asegurar que el texto descriptivo del centro e icono JAMÁS desaparezcan al editar o añadir más fotos
+function renderEditPreviews(type) {
+    const container = document.getElementById(`carousel-preview-${type}`);
+    const icon = document.getElementById(`icon-${type}`);
+    const text = document.getElementById(`text-${type}`);
+    
+    if(!container) return;
+    container.innerHTML = "";
+    
+    if(icon) icon.style.display = 'block';
+    if(text) text.style.display = 'block';
+    
+    if(currentImgs[type] && currentImgs[type].length > 0) {
+        container.style.display = 'flex';
+        
+        currentImgs[type].forEach((imgSrc, index) => {
+            const thumbWrap = document.createElement('div');
+            thumbWrap.className = 'preview-thumb-container';
+            
+            const img = document.createElement('img');
+            img.src = imgSrc;
+            img.onclick = (e) => { e.stopPropagation(); openFullscreenViewer(imgSrc); };
+            
+            const delBtn = document.createElement('button');
+            delBtn.className = 'thumb-del-btn';
+            delBtn.innerHTML = '&times;';
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                currentImgs[type].splice(index, 1);
+                renderEditPreviews(type);
+            };
+            
+            thumbWrap.appendChild(img);
+            thumbWrap.appendChild(delBtn);
+            container.appendChild(thumbWrap);
+        });
+    } else {
+        container.style.display = 'none';
+    }
+}
+
+function setRating(rating) {
+    currentOutfitRating = rating;
+    const stars = document.querySelectorAll('#outfit-rating-picker .star');
+    stars.forEach((star, index) => {
+        if(index < rating) { star.classList.add('active'); star.innerText = 'star'; }
+        else { star.classList.remove('active'); star.innerText = 'star_border'; }
+    });
+}
+
+// --- NUEVO SISTEMA DE RELACIÓN PRENDA-OUTFIT CON BUSCADOR ---
+function openClothesSelectionModal() {
+    tempSelectedClothes = [...currentSelectedClothes];
+    
+    // Limpiar el cuadro de texto del buscador del modal al abrirlo
+    const modalSearchInput = document.getElementById('search-input-modal');
+    if(modalSearchInput) modalSearchInput.value = '';
+    
+    renderModalClothesList();
+    document.getElementById('clothes-selection-modal').style.display = 'block';
+}
+
+function renderModalClothesList() {
+    const grid = document.getElementById('clothes-picker-grid');
+    if(!grid) return;
+    grid.innerHTML = '';
+    
+    const query = normalizeStr(document.getElementById('search-input-modal')?.value || '');
+    
+    // Filtrar prendas en base a la barra de búsqueda del modal
+    const filtered = globalItems.clothes.filter(item => {
+        return normalizeStr(item.name).includes(query) || 
+               normalizeStr(item.type).includes(query) || 
+               normalizeStr(item.tags).includes(query);
+    });
+    
+    if(filtered.length === 0) {
+        grid.innerHTML = '<p style="color:var(--outline); font-size:14px; grid-column: span 3; text-align:center; padding: 20px 0;">No se encontraron prendas.</p>';
+    } else {
+        filtered.forEach(item => {
+            const card = document.createElement('div');
+            const isSelected = tempSelectedClothes.includes(item.id);
+            card.className = `clothes-picker-card ${isSelected ? 'selected' : ''}`;
+            card.onclick = () => toggleClothSelection(item.id, card);
+            
+            const img = document.createElement('img');
+            img.src = item.images ? item.images[0] : item.image;
+            
+            card.appendChild(img);
+            grid.appendChild(card);
+        });
+    }
+}
+
+function filterModalClothes() {
+    renderModalClothesList();
+}
+
+function toggleClothSelection(id, cardElement) {
+    if(tempSelectedClothes.includes(id)) {
+        tempSelectedClothes = tempSelectedClothes.filter(cId => cId !== id);
+        cardElement.classList.remove('selected');
+    } else {
+        tempSelectedClothes.push(id);
+        cardElement.classList.add('selected');
+    }
+}
+
+function confirmClothesSelection() {
+    currentSelectedClothes = [...tempSelectedClothes];
+    closeModal('clothes-selection-modal');
+    renderSelectedClothesPreview();
+}
+
+function renderSelectedClothesPreview() {
+    const container = document.getElementById('outfit-clothes-preview');
+    if(!container) return;
+    container.innerHTML = '';
+    
+    if(currentSelectedClothes.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    container.style.display = 'flex';
+    
+    currentSelectedClothes.forEach(id => {
+        const item = globalItems.clothes.find(c => c.id === id);
+        if(!item) return;
+        
+        const thumbWrap = document.createElement('div');
+        thumbWrap.className = 'preview-thumb-container';
+        
+        const img = document.createElement('img');
+        img.src = item.images ? item.images[0] : item.image;
+        
+        const delBtn = document.createElement('button');
+        delBtn.className = 'thumb-del-btn';
+        delBtn.innerHTML = '&times;';
+        delBtn.onclick = (e) => {
+            e.stopPropagation();
+            currentSelectedClothes = currentSelectedClothes.filter(cId => cId !== id);
+            renderSelectedClothesPreview();
+        };
+        
+        thumbWrap.appendChild(img);
+        thumbWrap.appendChild(delBtn);
+        container.appendChild(thumbWrap);
+    });
+}
+
+// --- GUARDAR ---
+function savePrenda(silent = false) {
+    const name = document.getElementById('name-prenda').value;
+    const type = document.getElementById('type-prenda').value;
+    const color = document.getElementById('color-prenda').value;
+    const season = document.getElementById('season-prenda').value;
+    const tags = document.getElementById('tags-prenda').value;
+    const link = document.getElementById('link-prenda').value;
+
+    if (!name || currentImgs.prenda.length === 0) {
+        if(!silent) alert("Completa al menos el nombre y una foto.");
+        return;
+    }
+
+    const transaction = db.transaction(["clothes"], "readwrite");
+    const store = transaction.objectStore("clothes");
+    const itemData = { name, type, color, season, tags, link, images: currentImgs.prenda };
+    
+    if (editingId.prenda) itemData.id = editingId.prenda;
+    store.put(itemData);
+
+    transaction.oncomplete = function() {
+        if(!silent) alert(editingId.prenda ? "Prenda actualizada" : "Prenda guardada");
+        resetForm('prenda'); 
+        loadWardrobe(); 
+        if(!silent) switchTab('wardrobe', document.getElementById('nav-wardrobe'));
+    };
+}
+
+function saveOutfit(silent = false) {
+    const name = document.getElementById('name-outfit').value;
+    const occasion = document.getElementById('occasion-outfit').value;
+    const season = document.getElementById('season-outfit').value;
+    const tags = document.getElementById('tags-outfit').value;
+
+    if (!name || currentImgs.outfit.length === 0) {
+        if(!silent) alert("Añade un nombre y tus fotos de outfit.");
+        return;
+    }
+
+    const transaction = db.transaction(["outfits"], "readwrite");
+    const store = transaction.objectStore("outfits");
+    const itemData = { name, occasion, season, tags, rating: currentOutfitRating, images: currentImgs.outfit, clothesIds: currentSelectedClothes };
+    
+    if (editingId.outfit) itemData.id = editingId.outfit;
+    store.put(itemData);
+
+    transaction.oncomplete = function() {
+        if(!silent) alert(editingId.outfit ? "Outfit actualizado" : "Outfit guardado");
+        resetForm('outfit'); 
+        loadOutfits(); 
+        if(!silent) switchTab('outfits', document.getElementById('nav-outfits'));
+    };
+}
+
+// --- SELECCIÓN Y RENDERIZADO ---
+let pressTimer;
+function setupTouchEvents(cardElement, id, type) {
+    cardElement.addEventListener('pointerdown', () => {
+        if (selectionMode) return; 
+        pressTimer = setTimeout(() => { enterSelectionMode(id, type); }, 600);
+    });
+    cardElement.addEventListener('pointerup', () => clearTimeout(pressTimer));
+    cardElement.addEventListener('pointerleave', () => clearTimeout(pressTimer));
+    cardElement.addEventListener('pointercancel', () => clearTimeout(pressTimer));
+}
+
+function enterSelectionMode(id, type) { selectionMode = true; document.getElementById('selection-bar').style.display = 'flex'; toggleSelection(id, type); }
+
+function toggleSelection(id, type) {
+    const card = document.getElementById(`card-${type}-${id}`);
+    if (selectedItems.has(id)) {
+        selectedItems.delete(id); card.classList.remove('selected');
+        if (selectedItems.size === 0) clearSelection();
+    } else { selectedItems.add(id); card.classList.add('selected'); }
+    document.getElementById('selection-count').innerText = `${selectedItems.size} seleccionados`;
+}
+
+function clearSelection() {
+    selectionMode = false; selectedItems.clear();
+    document.getElementById('selection-bar').style.display = 'none';
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+}
+
+function deleteSelected() {
+    if(!confirm("¿Seguro que quieres eliminar los seleccionados?")) return;
+    const store = db.transaction([currentTabType], "readwrite").objectStore(currentTabType);
+    selectedItems.forEach(id => store.delete(id));
+    setTimeout(() => { clearSelection(); currentTabType === 'clothes' ? loadWardrobe() : loadOutfits(); }, 200);
+}
+
+function handleCardClick(item, type) { selectionMode ? toggleSelection(item.id, type) : openItemModal(item, type); }
+
+function loadWardrobe() {
+    db.transaction(["clothes"]).objectStore("clothes").getAll().onsuccess = (e) => {
+        globalItems.clothes = e.target.result; 
+        renderItems(globalItems.clothes, 'clothes');
+        buildFilterPanel('wardrobe');
+    };
+}
+
+// --- FILTROS Y BUSCADOR AVANZADO ---
+function loadOutfits() {
+    db.transaction(["outfits"]).objectStore("outfits").getAll().onsuccess = (e) => {
+        globalItems.outfits = e.target.result; 
+        renderItems(globalItems.outfits, 'outfits');
+        buildFilterPanel('outfits');
+    };
+}
+
+function renderItems(items, type) {
+    const grid = document.getElementById(type === 'clothes' ? 'wardrobe-grid' : 'outfits-grid');
+    if(!grid) return;
+    grid.innerHTML = "";
+    items.forEach(item => {
+        const coverImg = item.images ? item.images[0] : item.image;
+        const card = document.createElement('div');
+        card.className = 'card'; card.id = `card-${type}-${item.id}`;
+        setupTouchEvents(card, item.id, type); card.onclick = () => handleCardClick(item, type);
+
+        let infoHtml = ''; let bannerHtml = '';
+        if (type === 'clothes') {
+            infoHtml = `<h3>${item.name}</h3><p>${item.type} • ${item.season} <span class="color-dot" style="background-color:${item.color}"></span></p><p class="tag-span">${(item.tags||"").split(',').map(t => t.trim() ? '#'+t.trim() : '').join(' ')}</p>`;
+        } else {
+            if(item.rating && item.rating > 0) bannerHtml = `<div class="star-banner">${'★'.repeat(item.rating)}</div>`;
+            infoHtml = `<h3>${item.name}</h3><p>${item.occasion} • ${item.season}</p><p class="tag-span">${(item.tags||"").split(',').map(t => t.trim() ? '#'+t.trim() : '').join(' ')}</p>`;
+        }
+
+        card.innerHTML = `${bannerHtml}<img src="${coverImg}" loading="lazy"><div class="card-info">${infoHtml}</div>`;
+        grid.appendChild(card);
+    });
+}
+
+function toggleFilterPanel(view) {
+    const panel = document.getElementById(`filter-panel-${view}`);
+    if(panel) { panel.style.display = panel.style.display === 'none' ? 'flex' : 'none'; }
+}
+
+function buildFilterPanel(view) {
+    const panel = document.getElementById(`filter-panel-${view}`);
+    if(!panel) return;
+    panel.innerHTML = '';
+    
+    let options = new Set();
+    if(view === 'wardrobe') {
+        globalItems.clothes.forEach(item => {
+            if(item.type) options.add(item.type);
+            if(item.tags) item.tags.split(',').forEach(t => t.trim() && options.add(t.trim()));
+        });
+    } else {
+        globalItems.outfits.forEach(item => {
+            if(item.occasion) options.add(item.occasion);
+            if(item.tags) item.tags.split(',').forEach(t => t.trim() && options.add(t.trim()));
+        });
+    }
+    
+    if(options.size === 0) {
+        panel.innerHTML = '<p style="font-size:12px; color:var(--outline);">No hay categorías o etiquetas suficientes para filtrar.</p>';
+        return;
+    }
+    
+    const clearChip = document.createElement('span');
+    clearChip.className = `filter-chip ${activeFilters[view] === '' ? 'active' : ''}`;
+    clearChip.innerText = 'Todos';
+    clearChip.onclick = () => selectFilterChip(view, '');
+    panel.appendChild(clearChip);
+    
+    options.forEach(opt => {
+        const chip = document.createElement('span');
+        chip.className = `filter-chip ${activeFilters[view] === opt ? 'active' : ''}`;
+        chip.innerText = opt;
+        chip.onclick = () => selectFilterChip(view, opt);
+        panel.appendChild(chip);
+    });
+}
+
+function selectFilterChip(view, val) {
+    activeFilters[view] = val; buildFilterPanel(view);
+    if(view === 'wardrobe') filterWardrobe(); else filterOutfits();
+}
+
+function filterWardrobe() {
+    const q = normalizeStr(document.getElementById('search-input-wardrobe').value);
+    const filterChipVal = normalizeStr(activeFilters.wardrobe);
+    let filtered = globalItems.clothes.filter(i => {
+        const matchesSearch = normalizeStr(i.name).includes(q) || normalizeStr(i.tags).includes(q) || normalizeStr(i.type).includes(q) || normalizeStr(i.season).includes(q);
+        const matchesChip = filterChipVal === '' ? true : (normalizeStr(i.type) === filterChipVal || normalizeStr(i.tags).includes(filterChipVal));
+        return matchesSearch && matchesChip;
+    });
+    renderItems(filtered, 'clothes');
+}
+
+function filterOutfits() {
+    const q = normalizeStr(document.getElementById('search-input-outfits').value);
+    const filterChipVal = normalizeStr(activeFilters.outfits);
+    let filtered = globalItems.outfits.filter(i => {
+        const matchesSearch = normalizeStr(i.name).includes(q) || normalizeStr(i.occasion).includes(q) || normalizeStr(i.season).includes(q) || normalizeStr(i.tags).includes(q);
+        const matchesChip = filterChipVal === '' ? true : (normalizeStr(i.occasion) === filterChipVal || normalizeStr(i.tags).includes(filterChipVal));
+        return matchesSearch && matchesChip;
+    });
+    renderItems(filtered, 'outfits');
+}
+
+// --- ALGORITMO OUTFIT ALEATORIO ---
+function getCurrentSeason() {
+    const month = new Date().getMonth();
+    if ([11, 0, 1].includes(month)) return 'Invierno';
+    if ([2, 3, 4].includes(month)) return 'Primavera';
+    if ([5, 6, 7].includes(month)) return 'Verano';
+    return 'Otoño';
+}
+
+function getRandomOutfit() {
+    if(globalItems.outfits.length === 0) return alert("No tienes outfits guardados todavía.");
+    const currentSeason = getCurrentSeason();
+    const candidateOutfits = globalItems.outfits.filter(o => o.season === currentSeason || o.season === 'Todo el año');
+    if(candidateOutfits.length === 0) return alert(`No se encontraron outfits para la estación (${currentSeason}) o 'Todo el año'.`);
+    const randomIndex = Math.floor(Math.random() * candidateOutfits.length);
+    openItemModal(candidateOutfits[randomIndex], 'outfits');
+}
+
+// --- VISOR PANTALLA COMPLETA ---
+function openFullscreenViewer(src) {
+    const viewer = document.getElementById('fullscreen-viewer');
+    const img = document.getElementById('fullscreen-img');
+    if(viewer && img) { img.src = src; viewer.style.display = 'flex'; img.style.transform = 'scale(1)'; }
+}
+function closeFullscreenViewer() {
+    const viewer = document.getElementById('fullscreen-viewer');
+    if(viewer) viewer.style.display = 'none';
+}
+
+// --- MODAL DETALLES ---
+function openItemModal(item, type) {
+    const carousel = document.getElementById('modal-carousel-images');
+    const details = document.getElementById('modal-details-content');
+    const relationsContainer = document.getElementById('modal-relations-container');
+    const editContainer = document.getElementById('modal-edit-action-container');
+    
+    carousel.innerHTML = ""; relationsContainer.innerHTML = "";
+    
+    // FIJADO SEGURO: Inyección limpia de evento sin usar inline attributes propensos a fallos por Base64
+    editContainer.innerHTML = `
+        <button class="icon-btn modal-edit-btn-topleft" id="modal-edit-trigger-btn" title="Editar">
+            <span class="material-icons-round">edit</span>
+        </button>
+    `;
+    document.getElementById('modal-edit-trigger-btn').onclick = () => {
+        triggerModalEdit(item, type === "clothes" ? "prenda" : "outfit");
+    };
+
+    (item.images ? item.images : [item.image]).forEach(imgSrc => {
+        const img = document.createElement('img'); 
+        img.src = imgSrc; img.onclick = () => openFullscreenViewer(imgSrc);
+        carousel.appendChild(img);
+    });
+
+    if (type === 'clothes') {
+        details.innerHTML = `<h2>${item.name}</h2><p><strong>Tipo:</strong> ${item.type}</p><p><strong>Estación:</strong> ${item.season}</p><p><strong>Color:</strong> <span class="color-dot" style="background-color:${item.color}"></span></p><p><strong>Etiquetas:</strong> ${item.tags}</p>${item.link ? `<br><a href="${item.link}" target="_blank" class="btn-secondary" style="justify-content:center;">Abrir Link de Tienda</a>` : ''}`;
+        const relatedOutfits = globalItems.outfits.filter(o => o.clothesIds && o.clothesIds.includes(item.id));
+        if(relatedOutfits.length > 0) {
+            relationsContainer.innerHTML = '<h4>Outfits en los que aparece esta prenda:</h4>';
+            const miniCarousel = document.createElement('div'); miniCarousel.className = 'mini-relations-carousel';
+            relatedOutfits.forEach(outfit => {
+                const itemDiv = document.createElement('div'); itemDiv.className = 'mini-relation-item';
+                itemDiv.onclick = () => { closeModal('item-modal'); openItemModal(outfit, 'outfits'); };
+                itemDiv.innerHTML = `<img src="${outfit.images ? outfit.images[0] : outfit.image}"><span>${outfit.name}</span>`;
+                miniCarousel.appendChild(itemDiv);
+            });
+            relationsContainer.appendChild(miniCarousel);
+        }
+    } else {
+        const starsHtml = item.rating > 0 ? `<p style="color:#FFD700; font-size:20px;">${'★'.repeat(item.rating)}</p>` : '';
+        details.innerHTML = `${starsHtml}<h2>${item.name}</h2><p><strong>Ocasión:</strong> ${item.occasion}</p><p><strong>Estación:</strong> ${item.season}</p><p><strong>Etiquetas:</strong> ${item.tags||''}</p>`;
+        
+        if(item.clothesIds && item.clothesIds.length > 0) {
+            relationsContainer.innerHTML = '<h4>Prendas que componen este outfit:</h4>';
+            const miniCarousel = document.createElement('div'); miniCarousel.className = 'mini-relations-carousel';
+            item.clothesIds.forEach(cId => {
+                const piece = globalItems.clothes.find(c => c.id === cId);
+                if(piece) {
+                    const itemDiv = document.createElement('div'); itemDiv.className = 'mini-relation-item';
+                    itemDiv.onclick = () => { closeModal('item-modal'); openItemModal(piece, 'clothes'); };
+                    itemDiv.innerHTML = `<img src="${piece.images ? piece.images[0] : piece.image}"><span>${piece.name}</span>`;
+                    miniCarousel.appendChild(itemDiv);
+                }
+            });
+            relationsContainer.appendChild(miniCarousel);
+        }
+    }
+    document.getElementById('item-modal').style.display = 'block';
+}
+
+function triggerModalEdit(item, type) {
+    closeModal('item-modal');
+    editItem(item, type);
+}
+
+function editItem(item, type) {
+    switchTab('add', document.getElementById('nav-add')); 
+    switchForm(type);
+    editingId[type] = item.id; 
+    currentImgs[type] = item.images ? [...item.images] : [item.image];
+    
+    document.getElementById(`name-${type}`).value = item.name;
+    document.getElementById(`season-${type}`).value = item.season || "";
+    
+    if (type === 'prenda') {
+        document.getElementById('type-prenda').value = item.type || "";
+        document.getElementById('tags-prenda').value = item.tags || "";
+        document.getElementById('link-prenda').value = item.link || "";
+        updateColorFromPicker(item.color || "#9C254D");
+    } else {
+        document.getElementById('occasion-outfit').value = item.occasion || "";
+        document.getElementById('tags-outfit').value = item.tags || "";
+        setRating(item.rating || 0);
+        currentSelectedClothes = item.clothesIds ? [...item.clothesIds] : [];
+        renderSelectedClothesPreview();
+    }
+
+    renderEditPreviews(type);
+    document.getElementById(`btn-save-${type}`).innerText = `Actualizar ${type === 'prenda' ? 'Prenda' : 'Outfit'}`;
+}
+
+function resetForm(type) {
+    editingId[type] = null; currentImgs[type] = [];
+    document.getElementById(`name-${type}`).value = ""; document.getElementById(`season-${type}`).value = "";
+    
+    const previewBox = document.getElementById(`carousel-preview-${type}`);
+    if(previewBox) { previewBox.innerHTML = ""; previewBox.style.display = 'none'; }
+    
+    const icon = document.getElementById(`icon-${type}`);
+    const text = document.getElementById(`text-${type}`);
+    if(icon) icon.style.display = 'block'; 
+    if(text) text.style.display = 'block';
+    
+    document.getElementById(`btn-save-${type}`).innerText = `Guardar ${type === 'prenda' ? 'Prenda' : 'Outfit'}`;
+    
+    if (type === 'prenda') {
+        document.getElementById('type-prenda').value = ""; document.getElementById('tags-prenda').value = "";
+        document.getElementById('link-prenda').value = ""; document.getElementById('file-prenda').value = "";
+        updateColorFromPicker("#9C254D");
+    } else {
+        document.getElementById('occasion-outfit').value = ""; document.getElementById('tags-outfit').value = "";
+        document.getElementById('file-outfit').value = ""; setRating(0);
+        currentSelectedClothes = [];
+        renderSelectedClothesPreview();
+    }
+}
+
+function openSettings() { document.getElementById('settings-modal').style.display = 'block'; }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function setupModalOutsideClose() {
+    window.addEventListener('click', function(event) {
+        if (event.target.classList.contains('modal')) event.target.style.display = 'none';
+    });
+}
+
+// --- EXPORTAR E IMPORTAR ---
+function exportData() {
+    const transaction = db.transaction(["clothes", "outfits"], "readonly");
+    const cStore = transaction.objectStore("clothes").getAll();
+    const oStore = transaction.objectStore("outfits").getAll();
+
+    cStore.onsuccess = () => { oStore.onsuccess = () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ clothes: cStore.result, outfits: oStore.result }));
+        const dl = document.createElement('a'); dl.href = dataStr; dl.download = "armario_backup.json";
+        document.body.appendChild(dl); dl.click(); dl.remove();
+    };};
+}
+
+function importData(event) {
+    const file = event.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const backup = JSON.parse(e.target.result);
+            if (!backup.clothes) throw new Error();
+            
+            const readTrans = db.transaction(["clothes", "outfits"], "readonly");
+            const reqC = readTrans.objectStore("clothes").getAll();
+            const reqO = readTrans.objectStore("outfits").getAll();
+
+            reqO.onsuccess = () => {
+                const existingClothes = reqC.result;
+                const existingOutfits = reqO.result;
+
+                const writeTrans = db.transaction(["clothes", "outfits"], "readwrite");
+                const cStore = writeTrans.objectStore("clothes");
+                const oStore = writeTrans.objectStore("outfits");
+
+                let addedC = 0, addedO = 0;
+
+                backup.clothes.forEach(item => {
+                    const isDupe = existingClothes.some(ex => ex.name === item.name);
+                    if(!isDupe) { delete item.id; cStore.add(item); addedC++; }
+                });
+
+                backup.outfits.forEach(item => {
+                    const isDupe = existingOutfits.some(ex => ex.name === item.name);
+                    if(!isDupe) { delete item.id; oStore.add(item); addedO++; }
+                });
+
+                writeTrans.oncomplete = () => {
+                    alert(`¡Importación lista!\nAñadidas: ${addedC} prendas nuevas y ${addedO} outfits nuevos. (Se ignoraron los repetidos)`);
+                    closeModal('settings-modal'); loadWardrobe(); loadOutfits();
+                };
+            };
+        } catch (err) { alert("Archivo no válido. Debe ser un backup de esta app."); }
+    };
+    reader.readAsText(file);
+}
+
+// ==========================================================================
+//                     SISTEMA DE EXTENSIÓN SOCIAL
+// ==========================================================================
+
+// Iniciar ganchos automáticos cuando la app esté lista
+(function initSocialExtension() {
+    const checkInterval = setInterval(() => {
+        if (typeof db !== 'undefined' && db) {
+            clearInterval(checkInterval);
+            extendAppWithSocialFeatures();
+        }
+    }, 500);
+})();
+
+function extendAppWithSocialFeatures() {
+    // 1. Monitorear apertura de modales para inyectar botones de Compartir y Descargar
+    const observer = new MutationObserver(() => {
+        setupSocialModalButtons();
+        setupSocialSelectionBar();
+        setupSocialImportButtons();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Ejecución inicial segura
+    setupSocialModalButtons();
+    setupSocialSelectionBar();
+    setupSocialImportButtons();
+}
+
+// Inyecta los botones de Compartir y Descargar al lado del de editar
+function setupSocialModalButtons() {
+    const editBtns = document.querySelectorAll('.modal-edit-btn-topleft');
+    editBtns.forEach(btn => {
+        if (btn.parentNode.querySelector('.social-modal-btn')) return;
+
+        // Botón Compartir PNG
+        const shareBtn = document.createElement('button');
+        shareBtn.className = 'icon-btn social-modal-btn';
+        shareBtn.style.cssText = 'position: absolute; left: 60px; top: 12px; z-index: 220; background: rgba(255,255,255,0.85); color: #25181A; width: 36px; height: 36px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);';
+        shareBtn.innerHTML = '<span class="material-icons-round" style="font-size:20px;">share</span>';
+        shareBtn.title = "Compartir Tarjeta PNG";
+        shareBtn.onclick = (e) => { e.stopPropagation(); handleSocialAction('share'); };
+
+        // Botón Descargar JSON Individual
+        const downBtn = document.createElement('button');
+        downBtn.className = 'icon-btn social-modal-btn';
+        downBtn.style.cssText = 'position: absolute; left: 104px; top: 12px; z-index: 220; background: rgba(255,255,255,0.85); color: #25181A; width: 36px; height: 36px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);';
+        downBtn.innerHTML = '<span class="material-icons-round" style="font-size:20px;">download</span>';
+        downBtn.title = "Descargar Archivo de Elemento";
+        downBtn.onclick = (e) => { e.stopPropagation(); handleSocialAction('download'); };
+
+        btn.parentNode.appendChild(shareBtn);
+        btn.parentNode.appendChild(downBtn);
+    });
+}
+
+// Inyecta el botón de descarga en lote en la barra de selección superior
+function setupSocialSelectionBar() {
+    const selectionBar = document.getElementById('selection-bar');
+    if (!selectionBar || document.getElementById('social-bulk-download-btn')) return;
+
+    const deleteBtn = selectionBar.querySelector('.action-delete');
+    if (deleteBtn) {
+        const bulkDownBtn = document.createElement('button');
+        bulkDownBtn.id = 'social-bulk-download-btn';
+        bulkDownBtn.className = 'icon-btn';
+        bulkDownBtn.style.cssText = 'background: rgba(255,255,255,0.2); color: white; margin-right: 8px;';
+        bulkDownBtn.innerHTML = '<span class="material-icons-round">download</span>';
+        bulkDownBtn.title = "Descargar Seleccionados";
+        bulkDownBtn.onclick = downloadSelectedItemsSocial;
+        deleteBtn.parentNode.insertBefore(bulkDownBtn, deleteBtn);
+    }
+}
+
+// Inyecta los botones de importación rápida en las pestañas principales
+function setupSocialImportButtons() {
+    const wardrobeHeader = document.querySelector('#view-wardrobe header');
+    if (wardrobeHeader && !document.getElementById('social-import-wardrobe-container')) {
+        const container = document.createElement('div');
+        container.id = 'social-import-wardrobe-container';
+        container.style.cssText = 'margin-top: 10px; display: flex; gap: 8px;';
+        container.innerHTML = `
+            <button class="filter-chip" onclick="document.getElementById('social-file-input-clothes').click()" style="background: var(--surface); border: 1px dashed var(--primary); color: var(--primary); font-weight: bold; display: flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius:20px; font-size:13px; cursor:pointer;">
+                <span class="material-icons-round" style="font-size:16px;">file_upload</span> Importar Prenda(s)
+            </button>
+            <input type="file" id="social-file-input-clothes" accept=".json" style="display:none;" onchange="handleSocialFileImport(event, 'clothes')">
+        `;
+        wardrobeHeader.appendChild(container);
+    }
+
+    const outfitsHeader = document.querySelector('#view-outfits header');
+    if (outfitsHeader && !document.getElementById('social-import-outfits-container')) {
+        const container = document.createElement('div');
+        container.id = 'social-import-outfits-container';
+        container.style.cssText = 'margin-top: 10px; display: flex; gap: 8px;';
+        container.innerHTML = `
+            <button class="filter-chip" onclick="document.getElementById('social-file-input-outfits').click()" style="background: var(--surface); border: 1px dashed var(--primary); color: var(--primary); font-weight: bold; display: flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius:20px; font-size:13px; cursor:pointer;">
+                <span class="material-icons-round" style="font-size:16px;">file_upload</span> Importar Outfit(s)
+            </button>
+            <input type="file" id="social-file-input-outfits" accept=".json" style="display:none;" onchange="handleSocialFileImport(event, 'outfits')">
+        `;
+        outfitsHeader.appendChild(container);
+    }
+}
+
+// Determina el elemento activo basándose en los estados globales y el DOM
+function handleSocialAction(action) {
+    let activeItem = null;
+    let type = currentTabType || 'clothes';
+
+    if (editingId.prenda !== null) {
+        activeItem = globalItems.clothes.find(c => c.id === editingId.prenda);
+        type = 'clothes';
+    } else if (editingId.outfit !== null) {
+        activeItem = globalItems.outfits.find(o => o.id === editingId.outfit);
+        type = 'outfits';
+    }
+
+    // Fallback por lectura de título del Modal visible si los id de edición estuvieran limpios
+    if (!activeItem) {
+        let foundTitle = "";
+        document.querySelectorAll('.modal').forEach(m => {
+            if (window.getComputedStyle(m).display === 'block') {
+                const h2 = m.querySelector('h2');
+                if (h2) foundTitle = h2.innerText.trim();
+            }
+        });
+        if (foundTitle) {
+            activeItem = globalItems.clothes.find(c => c.name === foundTitle);
+            type = 'clothes';
+            if (!activeItem) {
+                activeItem = globalItems.outfits.find(o => o.name === foundTitle);
+                type = 'outfits';
+            }
+        }
+    }
+
+    if (!activeItem) {
+        alert("No se pudo detectar la información del elemento abierto.");
+        return;
+    }
+
+    if (action === 'share') {
+        shareItemAsPNGCard(type, activeItem);
+    } else if (action === 'download') {
+        downloadSingleSocialItem(type, activeItem);
+    }
+}
+
+// --- LOGICA DE COMPARTIR TARJETA EN ALTA CALIDAD PNG CON PALETA DINÁMICA ---
+function shareItemAsPNGCard(type, item) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 500;
+    canvas.height = 720;
+    const ctx = canvas.getContext('2d');
+
+    // Extraer los colores exactos de la paleta CSS activa en tiempo real
+    const styles = getComputedStyle(document.body);
+    const bg = styles.getPropertyValue('--bg').trim() || '#FFF0F2';
+    const primary = styles.getPropertyValue('--primary').trim() || '#9C254D';
+    const onBg = styles.getPropertyValue('--on-bg').trim() || '#25181A';
+    const surface = styles.getPropertyValue('--surface').trim() || '#F4DDDF';
+    const onSurface = styles.getPropertyValue('--on-surface').trim() || '#524345';
+
+    // Fondo del lienzo
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Contenedor tarjeta interior redondeada
+    ctx.fillStyle = surface;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(20, 20, 460, 680, 24) : ctx.rect(20, 20, 460, 680);
+    ctx.fill();
+
+    // Texto del título
+    ctx.fillStyle = primary;
+    ctx.font = 'bold 28px system-ui, -apple-system, sans-serif';
+    ctx.fillText(item.name || 'Sin nombre', 45, 75);
+
+    // Subtítulo descriptivo
+    ctx.fillStyle = onSurface;
+    ctx.font = '600 15px system-ui, sans-serif';
+    let sub = type === 'clothes' ? `Prenda / Categoría: ${item.type || 'General'}` : `Outfit Especial`;
+    ctx.fillText(sub, 45, 110);
+
+    // Añadir valoración por estrellas si es outfit
+    if (type === 'outfits' && item.rating) {
+        ctx.fillStyle = '#FFD700';
+        ctx.font = '22px system-ui';
+        ctx.fillText('★'.repeat(item.rating), 45, 140);
+    }
+
+    // Añadir etiquetas si existen
+    if (item.tags) {
+        ctx.fillStyle = primary;
+        ctx.font = 'italic 14px system-ui';
+        ctx.fillText(`Etiquetas: ${item.tags}`, 45, type === 'outfits' ? 165 : 138);
+    }
+
+    // Indicador visual de color de la prenda
+    if (type === 'clothes' && item.color) {
+        ctx.fillStyle = onSurface;
+        ctx.font = '14px system-ui';
+        ctx.fillText("Color base:", 45, 165);
+        ctx.fillStyle = item.color;
+        ctx.beginPath();
+        ctx.arc(140, 160, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = onBg;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    // Procesar e incrustar la primera imagen disponible
+    const firstImg = (item.images && item.images.length > 0) ? item.images[0] : null;
+    if (firstImg) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = function() {
+            ctx.save();
+            ctx.beginPath();
+            if(ctx.roundRect) ctx.roundRect(45, 190, 410, 440, 16);
+            ctx.clip();
+
+            // Lógica cover para ajustar proporciones de imagen en el canvas
+            const scale = Math.max(410 / img.width, 440 / img.height);
+            const x = 45 + (410 - img.width * scale) / 2;
+            const y = 190 + (440 - img.height * scale) / 2;
+            ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+            ctx.restore();
+
+            // Sello final de marca de agua estética
+            drawWatermarkAndShare(canvas, item.name, onSurface);
+        };
+        img.onerror = () => drawWatermarkAndShare(canvas, item.name, onSurface);
+        img.src = firstImg;
+    } else {
+        // Caja de marcador de posición si no hay foto
+        ctx.fillStyle = onBg;
+        ctx.globalAlpha = 0.05;
+        if(ctx.roundRect) { ctx.beginPath(); ctx.roundRect(45, 190, 410, 440, 16); ctx.fill(); }
+        ctx.globalAlpha = 1.0;
+        ctx.fillStyle = onSurface;
+        ctx.font = '16px system-ui';
+        ctx.fillText("(Sin imagen adjunta)", 180, 400);
+        drawWatermarkAndShare(canvas, item.name, onSurface);
+    }
+}
+
+function drawWatermarkAndShare(canvas, name, color) {
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.5;
+    ctx.font = 'bold 12px system-ui';
+    ctx.fillText("Compartido desde Mi Armario Local", 45, 675);
+    ctx.globalAlpha = 1.0;
+
+    canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const file = new File([blob], `${name.replace(/\s+/g, '_')}.png`, { type: 'image/png' });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    files: [file],
+                    title: 'Mi Armario Local',
+                    text: `¡Mira este diseño de mi vestidor!: ${name}`
+                });
+            } catch (err) {
+                if(err.name !== 'AbortError') fallbackDownloadBlob(blob, `${name}.png`);
+            }
+        } else {
+            fallbackDownloadBlob(blob, `${name}.png`);
+        }
+    }, 'image/png');
+}
+
+function fallbackDownloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// --- DESCARGA INDIVIDUAL JSON ---
+function downloadSingleSocialItem(type, item) {
+    const dataCopy = JSON.parse(JSON.stringify(item));
+    delete dataCopy.id; // Limpiar llave primaria local para evitar choques en el IndexedDB de destino
+
+    const fileStructure = {
+        version: "2.0-Social",
+        type: type,
+        data: [dataCopy]
+    };
+
+    triggerJsonDownload(fileStructure, `${item.name || 'elemento'}_social.json`);
+}
+
+// --- DESCARGA EN MULTISELECCIÓN LOTE JSON ---
+function downloadSelectedItemsSocial() {
+    if (!selectedItems || selectedItems.size === 0) {
+        alert("No has seleccionado ningún elemento.");
+        return;
+    }
+
+    const type = currentTabType || 'clothes';
+    const batchData = [];
+
+    selectedItems.forEach(id => {
+        const targetId = Number(id) || id;
+        const found = globalItems[type].find(i => i.id === targetId);
+        if (found) {
+            const cleanCopy = JSON.parse(JSON.stringify(found));
+            delete cleanCopy.id;
+            batchData.push(cleanCopy);
+        }
+    });
+
+    if (batchData.length === 0) {
+        alert("No se pudieron recopilar los datos estructurados.");
+        return;
+    }
+
+    const fileStructure = {
+        version: "2.0-Social-Batch",
+        type: type,
+        data: batchData
+    };
+
+    triggerJsonDownload(fileStructure, `lote_${type}_armario.json`);
+}
+
+function triggerJsonDownload(obj, filename) {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(obj, null, 2));
+    const a = document.createElement('a');
+    a.setAttribute("href", dataStr);
+    a.setAttribute("download", filename.replace(/\s+/g, '_'));
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+}
+
+// --- MANEJADOR DE IMPORTACIÓN CONTEXTUAL ---
+function handleSocialFileImport(event, expectedType) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const payload = JSON.parse(e.target.result);
+            let targetItems = [];
+
+            // Validar firma del archivo social generado
+            if (payload && payload.version && payload.type) {
+                if (payload.type !== expectedType) {
+                    alert(`Incompatibilidad: El archivo es de tipo '${payload.type}', pero estás intentándolo importar en la pestaña de '${expectedType}'.`);
+                    return;
+                }
+                targetItems = payload.data || [];
+            } else {
+                // Fallback inteligente si se sube un array crudo directo
+                if (Array.isArray(payload)) targetItems = payload;
+                else if (typeof payload === 'object') targetItems = [payload];
+            }
+
+            if (targetItems.length === 0) {
+                alert("El archivo no contiene registros legibles.");
+                return;
+            }
+
+            // Transacción segura de escritura directa en base de datos sin borrar lo existente
+            const trans = db.transaction([expectedType], "readwrite");
+            const store = trans.objectStore(expectedType);
+            let importedCounter = 0;
+
+            targetItems.forEach(item => {
+                delete item.id; // Confirmar auto-incremento limpio
+                store.add(item);
+                importedCounter++;
+            });
+
+            trans.oncomplete = () => {
+                alert(`¡Importación Social Completa! Se han añadido ${importedCounter} elemento(s) nuevo(s) a tu colección.`);
+                // Forzar refresco de las vistas usando tus funciones de render nativas
+                if (typeof loadWardrobe === 'function') loadWardrobe();
+                if (typeof loadOutfits === 'function') loadOutfits();
+            };
+
+            trans.onerror = () => alert("Error interno al escribir en la base de datos.");
+
+        } catch (err) {
+            alert("Error de lectura: El archivo no es un JSON válido.");
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = ""; // Limpiar input para futuras acciones
+}

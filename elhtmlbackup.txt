@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mi Armario Local</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icono.png">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+</head>
+<body>
+
+    <div id="selection-bar" class="selection-bar">
+        <div class="selection-info">
+            <button class="icon-btn" onclick="clearSelection()"><span class="material-icons-round">close</span></button>
+            <span id="selection-count">0 seleccionados</span>
+        </div>
+        <button class="icon-btn action-delete" onclick="deleteSelected()"><span class="material-icons-round">delete</span></button>
+    </div>
+
+    <!-- VISTA 1: ARMARIO -->
+    <main id="view-wardrobe" class="view active">
+        <header>
+            <div class="header-top">
+                <h1>Mi Armario</h1>
+                <button class="icon-btn" onclick="openSettings()" title="Ajustes"><span class="material-icons-round">settings</span></button>
+            </div>
+            <div class="search-row">
+                <div class="search-bar">
+                    <span class="material-icons-round">search</span>
+                    <input type="text" id="search-input-wardrobe" placeholder="Buscar prenda, color, etiqueta..." oninput="filterWardrobe()">
+                </div>
+                <button class="icon-btn tune-btn" onclick="toggleFilterPanel('wardrobe')" title="Filtros avanzados"><span class="material-icons-round">tune</span></button>
+            </div>
+            <div id="filter-panel-wardrobe" class="filter-panel" style="display: none;"></div>
+        </header>
+        <div class="grid-pinterest" id="wardrobe-grid"></div>
+    </main>
+
+    <!-- VISTA 2: AÑADIR/EDITAR -->
+    <main id="view-add" class="view">
+        <header>
+            <div class="toggle-container">
+                <button id="toggle-prenda" class="toggle-btn active" onclick="switchForm('prenda')">Prenda</button>
+                <button id="toggle-outfit" class="toggle-btn" onclick="switchForm('outfit')">Outfit</button>
+            </div>
+        </header>
+
+        <!-- Formulario Prenda -->
+        <div id="form-prenda" class="form-container">
+            <div class="upload-box-wrapper">
+                <div class="upload-box" onclick="document.getElementById('file-prenda').click()">
+                    <span class="material-icons-round" id="icon-prenda">add_a_photo</span>
+                    <p id="text-prenda">Subir fotos de la prenda</p>
+                    <input type="file" id="file-prenda" accept="image/*" multiple style="display:none;" onchange="previewImages(this, 'carousel-preview-prenda', 'icon-prenda', 'text-prenda', 'prenda')">
+                </div>
+                <div id="carousel-preview-prenda" class="carousel-preview-container" style="display:none;"></div>
+            </div>
+            <input type="text" id="name-prenda" placeholder="Nombre (ej. Abrigo Zara)" class="input-material">
+            <select id="type-prenda" class="input-material" onchange="handleNewType(this)">
+                <!-- Se llena dinámicamente desde JS -->
+            </select>
+            
+            <!-- Selector de Color Avanzado con Rueda -->
+            <div class="advanced-color-picker">
+                <label>Color principal:</label>
+                <div class="color-wheel-container">
+                    <input type="color" id="color-prenda" value="#9C254D" onchange="updateColorFromPicker(this.value)" oninput="updateColorFromPicker(this.value)">
+                    <span>Toca el círculo para abrir la rueda de color</span>
+                </div>
+                <div class="color-manual-inputs">
+                    <div class="manual-input-box">
+                        <span>HEX</span>
+                        <input type="text" id="color-hex-input" placeholder="#9C254D" oninput="updateColorFromText('hex')">
+                    </div>
+                    <div class="manual-input-box">
+                        <span>RGB</span>
+                        <input type="text" id="color-rgb-input" placeholder="156, 37, 77" oninput="updateColorFromText('rgb')">
+                    </div>
+                </div>
+            </div>
+
+            <select id="season-prenda" class="input-material">
+                <option value="">Estación del año...</option>
+                <option value="Todo el año">Todo el año</option>
+                <option value="Primavera">Primavera</option>
+                <option value="Verano">Verano</option>
+                <option value="Otoño">Otoño</option>
+                <option value="Invierno">Invierno</option>
+            </select>
+            <input type="text" id="tags-prenda" placeholder="Etiquetas (ej. fiesta, casual)" class="input-material">
+            <input type="url" id="link-prenda" placeholder="Link de compra (opcional)" class="input-material">
+            <button class="btn-primary" id="btn-save-prenda" onclick="savePrenda()">Guardar Prenda</button>
+        </div>
+
+        <!-- Formulario Outfit -->
+        <div id="form-outfit" class="form-container" style="display: none;">
+            <div class="upload-box-wrapper">
+                <div class="upload-box" onclick="document.getElementById('file-outfit').click()">
+                    <span class="material-icons-round" id="icon-outfit">collections</span>
+                    <p id="text-outfit">Subir fotos del Outfit</p>
+                    <input type="file" id="file-outfit" accept="image/*" multiple style="display:none;" onchange="previewImages(this, 'carousel-preview-outfit', 'icon-outfit', 'text-outfit', 'outfit')">
+                </div>
+                <div id="carousel-preview-outfit" class="carousel-preview-container" style="display:none;"></div>
+            </div>
+            
+            <div class="rating-picker" id="outfit-rating-picker">
+                <span class="material-icons-round star" onclick="setRating(1)">star_border</span>
+                <span class="material-icons-round star" onclick="setRating(2)">star_border</span>
+                <span class="material-icons-round star" onclick="setRating(3)">star_border</span>
+                <span class="material-icons-round star" onclick="setRating(4)">star_border</span>
+                <span class="material-icons-round star" onclick="setRating(5)">star_border</span>
+            </div>
+
+            <input type="text" id="name-outfit" placeholder="Nombre del Outfit (ej. Boda Ana)" class="input-material">
+            <input type="text" id="occasion-outfit" placeholder="Ocasión (ej. Boda, Comunión)" class="input-material">
+            
+            <!-- Relación Prenda-Outfit Mejorada -->
+            <div class="relation-selector-box">
+                <label>Vincular prendas de tu armario:</label>
+                <button type="button" class="btn-secondary" style="margin-bottom: 5px; justify-content:center;" onclick="openClothesSelectionModal()">
+                    <span class="material-icons-round">checkroom</span> + Elegir prendas
+                </button>
+                <div id="outfit-clothes-preview" class="carousel-preview-container" style="display:none;">
+                    <!-- Miniaturas con la X se cargarán aquí -->
+                </div>
+            </div>
+
+            <select id="season-outfit" class="input-material">
+                <option value="">Estación del año...</option>
+                <option value="Todo el año">Todo el año</option>
+                <option value="Primavera">Primavera</option>
+                <option value="Verano">Verano</option>
+                <option value="Otoño">Otoño</option>
+                <option value="Invierno">Invierno</option>
+            </select>
+            <input type="text" id="tags-outfit" placeholder="Etiquetas (ej. noche, formal)" class="input-material">
+            <button class="btn-primary" id="btn-save-outfit" onclick="saveOutfit()">Guardar Outfit</button>
+        </div>
+    </main>
+
+    <!-- VISTA 3: OUTFITS -->
+    <main id="view-outfits" class="view">
+        <header>
+            <div class="header-top">
+                <h1>Mis Outfits</h1>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button class="icon-btn dice-btn" onclick="getRandomOutfit()" title="Outfit aleatorio por estación"><span class="material-icons-round">casino</span></button>
+                    <button class="icon-btn" onclick="openSettings()" title="Ajustes"><span class="material-icons-round">settings</span></button>
+                </div>
+            </div>
+            <div class="search-row">
+                <div class="search-bar">
+                    <span class="material-icons-round">search</span>
+                    <input type="text" id="search-input-outfits" placeholder="Buscar outfit, ocasión, estación..." oninput="filterOutfits()">
+                </div>
+                <button class="icon-btn tune-btn" onclick="toggleFilterPanel('outfits')" title="Filtros avanzados"><span class="material-icons-round">tune</span></button>
+            </div>
+            <div id="filter-panel-outfits" class="filter-panel" style="display: none;"></div>
+        </header>
+        <div class="grid-pinterest" id="outfits-grid"></div>
+    </main>
+
+    <!-- MODALES -->
+    <div id="item-modal" class="modal">
+        <div class="modal-content">
+            <div id="modal-edit-action-container"></div>
+            <span class="close-modal" onclick="closeModal('item-modal')">&times;</span>
+            <div class="modal-carousel" id="modal-carousel-images"></div>
+            <div class="modal-details" id="modal-details-content"></div>
+            <div id="modal-relations-container" class="modal-relations-section"></div>
+            <div class="modal-actions" id="modal-actions" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- MODAL SELECCIÓN DE PRENDAS PARA OUTFIT CON BUSCADOR -->
+    <div id="clothes-selection-modal" class="modal">
+        <div class="modal-content settings-content" style="display:flex; flex-direction:column; max-height:85vh; padding: 20px;">
+            <span class="close-modal" style="color:var(--primary); top:15px; right:15px;" onclick="closeModal('clothes-selection-modal')">&times;</span>
+            <h3 style="color:var(--primary); margin-bottom: 12px;">Selecciona Prendas</h3>
+            
+            <div class="search-bar" style="margin-bottom: 15px; background-color: var(--surface); width: 100%;">
+                <span class="material-icons-round">search</span>
+                <input type="text" id="search-input-modal" placeholder="Buscar en mi armario..." oninput="filterModalClothes()">
+            </div>
+
+            <div id="clothes-picker-grid" class="clothes-picker-grid"></div>
+            <button class="btn-primary" style="margin-top: 15px;" onclick="confirmClothesSelection()">Confirmar Selección</button>
+        </div>
+    </div>
+
+    <!-- MODAL DE AJUSTES -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content settings-content">
+            <span class="close-modal" style="color:var(--primary);" onclick="closeModal('settings-modal')">&times;</span>
+            <h2 style="color:var(--primary); margin-bottom: 20px;">Ajustes</h2>
+            
+            <div class="settings-section">
+                <h3>Personalización</h3>
+                <div class="theme-grid">
+                    <button id="theme-btn-default" class="theme-btn" onclick="setTheme('default')">Original</button>
+                    <button id="theme-btn-pastel" class="theme-btn" onclick="setTheme('pastel')">Chill / Lo-Fi</button>
+                    <button id="theme-btn-oled" class="theme-btn" onclick="setTheme('oled')">OLED</button>
+                    <button id="theme-btn-winter" class="theme-btn" onclick="setTheme('winter')">Navideño</button>
+                    <button id="theme-btn-summer" class="theme-btn" onclick="setTheme('summer')">Verano</button>
+                </div>
+                <div class="dark-mode-toggle" onclick="toggleDarkMode()">
+                    <span>Modo Oscuro / Claro</span>
+                    <span class="material-icons-round" id="dark-mode-icon">light_mode</span>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>Datos</h3>
+                <button class="btn-secondary" onclick="document.getElementById('import-file').click()">
+                    <span class="material-icons-round">upload</span> Importar Copia
+                </button>
+                <input type="file" id="import-file" accept=".json, application/json, text/plain, */*" onchange="importData(event)" style="display:none;">
+                <button class="btn-secondary" onclick="exportData()">
+                    <span class="material-icons-round">download</span> Exportar Copia
+                </button>
+            </div>
+            <div class="credits"><p><strong>Hecho con ❤️ para ti</strong></p><p><strong>Versión 2.0 - 2026</strong></p></div>
+        </div>
+    </div>
+
+    <!-- VISOR DE IMAGEN COMPLETA CON ZOOM -->
+    <div id="fullscreen-viewer" class="fullscreen-viewer" onclick="closeFullscreenViewer()">
+        <span class="close-fullscreen">&times;</span>
+        <img id="fullscreen-img" src="" alt="Vista completa">
+    </div>
+
+    <nav class="bottom-nav">
+        <button id="nav-wardrobe" class="nav-item active" onclick="switchTab('wardrobe', this)">
+            <span class="material-icons-round">checkroom</span><span>Armario</span>
+        </button>
+        <button id="nav-add" class="nav-item fab-style" onclick="handleFabClick(this)">
+            <span class="material-icons-round">add</span>
+        </button>
+        <button id="nav-outfits" class="nav-item" onclick="switchTab('outfits', this)">
+            <span class="material-icons-round">style</span><span>Outfits</span>
+        </button>
+    </nav>
+
+    <script src="app.js"></script>
+</body>
+</html>

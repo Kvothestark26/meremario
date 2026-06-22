@@ -1,0 +1,364 @@
+:root {
+    --bg: #FFF0F2;
+    --on-bg: #25181A;
+    --primary: #9C254D;
+    --primary-container: #FFD9E1;
+    --on-primary-container: #3F001C;
+    --surface: #F4DDDF;
+    --on-surface: #524345;
+    --outline: #857375;
+    --nav-active-bg: rgba(156, 37, 77, 0.12);
+}
+
+/* ==========================================================================
+   PALETAS DE COLOR DE MODO OSCURO (CORREGIDO)
+   ========================================================================== */
+
+/* 1. MODO OSCURO - ORIGINAL (Base / Fallback global) */
+body.dark-mode {
+    --bg: #1A1214;
+    --on-bg: #FDE8EC;
+    --primary: #FFB3C6;
+    --primary-container: #4D1226;
+    --on-primary-container: #FFD9E1;
+    --surface: #2D2024;
+    --on-surface: #D8C2C6;
+    --outline: #A08C8E;
+    --nav-active-bg: rgba(255, 179, 198, 0.18);
+}
+
+/* 2. PALETA CHILL / LO-FI (Base Clara) */
+[data-theme="pastel"] {
+    --bg: #F4EAE1;
+    --on-bg: #4A3E3D;
+    --primary: #8C6A5E;
+    --primary-container: #E8D8CE;
+    --on-primary-container: #3D2B24;
+    --surface: #EFE3D8;
+    --on-surface: #6B5954;
+    --outline: #9F8A83;
+    --nav-active-bg: rgba(140, 106, 94, 0.15);
+}
+/* MODO OSCURO - CHILL / LO-FI (CORREGIDO: detecta tema en html y dark-mode en body) */
+[data-theme="pastel"] body.dark-mode {
+    --bg: #231B17;
+    --on-bg: #EFE5E0;
+    --primary: #D2B5AA;
+    --primary-container: #44322B;
+    --on-primary-container: #F6EBE6;
+    --surface: #302621;
+    --on-surface: #C8B8B2;
+    --outline: #8B7770;
+    --nav-active-bg: rgba(210, 181, 170, 0.2);
+}
+
+/* 3. PALETA OLED (Base Clara/Contraste) */
+[data-theme="oled"] {
+    --bg: #000000;
+    --on-bg: #FFFFFF;
+    --primary: #00E6FF;
+    --primary-container: #111111;
+    --on-primary-container: #00E6FF;
+    --surface: #121212;
+    --on-surface: #E0E0E0;
+    --outline: #FFFFFF;
+    --nav-active-bg: rgba(0, 230, 255, 0.25);
+}
+/* MODO OSCURO - OLED (CORREGIDO) */
+[data-theme="oled"] body.dark-mode {
+    --bg: #000000;
+    --on-bg: #FFFFFF;
+    --primary: #00F5D4;
+    --primary-container: #0D0D0D;
+    --on-primary-container: #00F5D4;
+    --surface: #141414;
+    --on-surface: #EAEAEA;
+    --outline: #999999;
+    --nav-active-bg: rgba(0, 245, 212, 0.22);
+}
+
+/* 4. PALETA NAVIDEÑA / WINTER (Base Clara) */
+[data-theme="winter"] {
+    --bg: #EEF5F8;
+    --on-bg: #1A2B32;
+    --primary: #A61C2E;
+    --primary-container: #DCEBF2;
+    --on-primary-container: #1C3540;
+    --surface: #E2ECF1;
+    --on-surface: #334E5B;
+    --outline: #7899A8;
+    --nav-active-bg: rgba(166, 28, 46, 0.12);
+}
+/* MODO OSCURO - WINTER (CORREGIDO) */
+[data-theme="winter"] body.dark-mode {
+    --bg: #0F1E26;
+    --on-bg: #EBF4F8;
+    --primary: #FF5C73;
+    --primary-container: #3D1117;
+    --on-primary-container: #FFD2D7;
+    --surface: #1B2D37;
+    --on-surface: #C2D8E3;
+    --outline: #547787;
+    --nav-active-bg: rgba(255, 92, 115, 0.18);
+}
+
+/* 5. PALETA VERANO / TROPICAL (Base Clara) */
+[data-theme="summer"] {
+    --bg: #FFFDF0;
+    --on-bg: #332C00;
+    --primary: #00A896;
+    --primary-container: #FDF0A6;
+    --on-primary-container: #4D3D00;
+    --surface: #F9F4CE;
+    --on-surface: #59532A;
+    --outline: #8C865C;
+    --nav-active-bg: rgba(0, 168, 150, 0.15);
+}
+/* MODO OSCURO - SUMMER (CORREGIDO) */
+[data-theme="summer"] body.dark-mode {
+    --bg: #110D26;
+    --on-bg: #F3F1FB;
+    --primary: #FFD166;
+    --primary-container: #251B52;
+    --on-primary-container: #FFEAA8;
+    --surface: #1C173B;
+    --on-surface: #D3CEEE;
+    --outline: #6A62A3;
+    --nav-active-bg: rgba(255, 209, 102, 0.2);
+}
+
+/* ==========================================================================
+   ESTILOS GENERALES Y ELEMENTOS DE LA INTERFAZ
+   ========================================================================== */
+* {
+    box-sizing: border-box;
+    margin: 0; padding: 0;
+    font-family: system-ui, -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background-color: var(--bg);
+    color: var(--on-bg);
+    padding-bottom: 95px;
+    overflow-x: hidden;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.view { display: none; padding: 20px; animation: fadeIn 0.2s ease-out; }
+.view.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+.header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+header h1 { font-size: 28px; color: var(--primary); }
+
+.icon-btn {
+    background: var(--primary-container); border: none; padding: 10px;
+    border-radius: 50%; color: var(--on-primary-container);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: transform 0.1s;
+}
+.icon-btn:active { transform: scale(0.92); }
+
+.search-row { display: flex; gap: 8px; align-items: center; width: 100%; }
+.search-bar {
+    display: flex; align-items: center; background-color: var(--surface);
+    border-radius: 28px; padding: 12px 18px; color: var(--on-surface); flex: 1;
+}
+.search-bar input {
+    border: none; background: transparent; outline: none;
+    width: 100%; margin-left: 10px; font-size: 16px; color: var(--on-surface);
+}
+
+.filter-panel {
+    background: var(--surface); margin-top: 10px; padding: 12px;
+    border-radius: 16px; display: flex; flex-wrap: wrap; gap: 8px;
+    animation: fadeIn 0.2s ease-out;
+}
+.filter-chip {
+    padding: 6px 12px; border-radius: 20px; border: 1px solid var(--outline);
+    background: var(--bg); color: var(--on-bg); font-size: 13px; cursor: pointer;
+}
+.filter-chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+.grid-pinterest { columns: 2; column-gap: 12px; margin-top: 18px; }
+.form-container { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+
+.toggle-container { display: flex; background: var(--surface); border-radius: 24px; padding: 4px; }
+.toggle-btn {
+    flex: 1; border: none; background: transparent; padding: 12px;
+    border-radius: 20px; font-weight: 600; color: var(--on-surface); cursor: pointer;
+}
+.toggle-btn.active { background: var(--primary); color: white; }
+
+.card {
+    break-inside: avoid; background: var(--surface); border-radius: 20px;
+    margin-bottom: 12px; overflow: hidden; position: relative;
+    transition: transform 0.2s, border 0.2s;
+}
+.card.selected { border: 4px solid var(--primary); transform: scale(0.95); opacity: 0.8; }
+.card img { width: 100%; height: auto; display: block; object-fit: cover; }
+
+.star-banner {
+    position: absolute; top: 0; left: 0; right: 0;
+    background: rgba(0, 0, 0, 0.65); color: #FFD700;
+    padding: 6px; display: flex; justify-content: center;
+    font-size: 14px; letter-spacing: 2px; z-index: 5;
+}
+
+.card-info { padding: 12px; color: var(--on-surface); }
+.card-info h3 { font-size: 15px; margin-bottom: 4px; color: var(--on-bg); }
+.card-info p { font-size: 12px; color: var(--outline); }
+.tag-span { color: var(--primary) !important; font-weight: 500; margin-top: 2px; }
+
+.color-dot {
+    display: inline-block; width: 14px; height: 14px;
+    border-radius: 50%; border: 1px solid rgba(0,0,0,0.2);
+    margin-left: 4px; vertical-align: middle;
+}
+
+/* Edición y Previsualización de Fotos / Prendas */
+.upload-box-wrapper { display: flex; flex-direction: column; gap: 10px; }
+.upload-box {
+    background-color: var(--surface); border-radius: 24px; min-height: 120px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--primary); border: 2px dashed var(--primary);
+    padding: 16px; text-align: center; cursor: pointer;
+}
+.carousel-preview-container { display: flex; gap: 10px; overflow-x: auto; width: 100%; padding: 4px 0; }
+
+.preview-thumb-container { position: relative; flex: 0 0 90px; height: 110px; }
+.preview-thumb-container img { width: 100%; height: 100%; border-radius: 12px; object-fit: cover; }
+.thumb-del-btn {
+    position: absolute; top: -4px; right: -4px; background: #E53935;
+    color: white; border: none; border-radius: 50%; width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+    font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Selector de Color Mejorado (Rueda Nativa) */
+.advanced-color-picker {
+    background: var(--surface); padding: 14px; border-radius: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+}
+.advanced-color-picker label { font-size: 14px; font-weight: 600; color: var(--on-bg); }
+.color-wheel-container {
+    display: flex; align-items: center; gap: 15px; margin-bottom: 5px;
+}
+.color-wheel-container span { font-size: 12px; color: var(--outline); font-weight: 500;}
+#color-prenda {
+    width: 60px; height: 60px; border: none; border-radius: 50%; cursor: pointer;
+    background: transparent; outline: none; padding: 0; flex-shrink: 0;
+}
+#color-prenda::-webkit-color-swatch-wrapper { padding: 0; }
+#color-prenda::-webkit-color-swatch { border: 3px solid var(--outline); border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+
+.color-manual-inputs { display: flex; gap: 10px; align-items: center; }
+.manual-input-box { display: flex; flex-direction: column; flex: 1; }
+.manual-input-box span { font-size: 11px; font-weight: bold; color: var(--outline); margin-bottom: 2px; }
+.manual-input-box input {
+    background: var(--bg); border: 1px solid var(--outline); padding: 8px;
+    border-radius: 8px; font-size: 13px; color: var(--on-bg); outline: none; text-align: center;
+}
+
+/* Relación Outfit y Modal de Prendas */
+.relation-selector-box {
+    background: var(--surface); padding: 14px; border-radius: 16px;
+    display: flex; flex-direction: column; gap: 8px;
+}
+.relation-selector-box label { font-size: 14px; font-weight: 600; }
+.clothes-picker-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; overflow-y: auto; flex: 1; padding-bottom: 20px;
+}
+.clothes-picker-card {
+    position: relative; border-radius: 12px; overflow: hidden; cursor: pointer; border: 3px solid transparent; transition: 0.2s;
+}
+.clothes-picker-card img { width: 100%; height: 90px; object-fit: cover; display: block; }
+.clothes-picker-card.selected { border-color: var(--primary); transform: scale(0.95); }
+.clothes-picker-card.selected::after {
+    content: '✓'; position: absolute; top: 4px; right: 4px; background: var(--primary);
+    color: white; width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold;
+}
+
+/* Carruseles dentro de Modales */
+.modal-relations-section { padding: 0 20px 15px 20px; border-top: 1px solid var(--surface); margin-top: 5px; }
+.modal-relations-section h4 { font-size: 14px; color: var(--outline); margin-bottom: 8px; margin-top: 10px;}
+.mini-relations-carousel { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; }
+.mini-relation-item { flex: 0 0 80px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+.mini-relation-item img { width: 70px; height: 70px; border-radius: 12px; object-fit: cover; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.mini-relation-item span { font-size: 11px; text-align: center; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; color: var(--on-bg); }
+
+.input-material {
+    background-color: var(--surface); border: none; padding: 16px;
+    border-radius: 16px; font-size: 16px; outline: none; color: var(--on-bg);
+}
+
+.rating-picker { display: flex; justify-content: center; gap: 8px; padding: 10px; background: var(--surface); border-radius: 16px; }
+.rating-picker .star { font-size: 32px; color: var(--outline); cursor: pointer; transition: color 0.2s; }
+.rating-picker .star.active { color: #FFD700; }
+
+.btn-primary {
+    background-color: var(--primary); color: white; border: none;
+    padding: 16px; border-radius: 24px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%;
+}
+.btn-secondary {
+    background-color: var(--surface); color: var(--on-bg); border: none;
+    padding: 16px; border-radius: 16px; font-size: 16px; font-weight: 600;
+    display: flex; align-items: center; gap: 10px; margin-bottom: 12px; width: 100%; cursor: pointer; border: 1px solid var(--outline);
+}
+
+/* Ajustes Barra de Navegación */
+.bottom-nav {
+    position: fixed; bottom: 0; width: 100%; height: 80px;
+    background-color: var(--surface); display: flex; justify-content: space-around;
+    align-items: center; border-top-left-radius: 28px; border-top-right-radius: 28px;
+    z-index: 100; box-shadow: 0 -4px 16px rgba(0,0,0,0.04);
+}
+.nav-item {
+    background: none; border: none; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; color: var(--on-surface); font-size: 12px; 
+    height: 56px; border-radius: 18px; cursor: pointer; transition: all 0.2s ease; width: 65px;
+}
+.nav-item.active { 
+    color: var(--primary); font-weight: bold; background-color: var(--nav-active-bg);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
+}
+.nav-item span.material-icons-round { margin-bottom: 2px; }
+.fab-style { width: 65px; height: 56px; }
+.fab-style span.material-icons-round { background-color: var(--primary) !important; color: white !important; padding: 12px !important; border-radius: 16px !important; font-size: 26px; }
+
+.selection-bar {
+    position: fixed; top: 0; left: 0; width: 100%; background-color: var(--primary);
+    color: white; display: none; justify-content: space-between; align-items: center;
+    padding: 16px 20px; z-index: 300;
+}
+.selection-info { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 18px; }
+.selection-bar .icon-btn { background: transparent; color: white; }
+.selection-bar .action-delete { background: #E53935; }
+
+/* Modales Mejorados */
+.modal { display: none; position: fixed; z-index: 200; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+.modal-content { background-color: var(--bg); margin: 12% auto; width: 88%; max-width: 420px; border-radius: 28px; overflow: hidden; position: relative; max-height: 82vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+.settings-content { padding: 30px 20px; margin: 15% auto; }
+.close-modal { position: absolute; right: 16px; top: 12px; color: #fff; font-size: 30px; font-weight: bold; z-index: 220; text-shadow: 0 2px 6px rgba(0,0,0,0.8); cursor: pointer; }
+.modal-edit-btn-topleft { position: absolute; left: 16px; top: 12px; z-index: 220; background: rgba(255,255,255,0.85); color: #25181A; width: 36px; height: 36px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.modal-carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; background: #111; height: 280px; }
+.modal-carousel img { flex: 0 0 100%; width: 100%; object-fit: contain; scroll-snap-align: start; cursor: zoom-in; }
+.modal-details { padding: 20px; color: var(--on-bg); }
+.modal-details h2 { color: var(--primary); margin-bottom: 6px; font-size: 22px; }
+.modal-actions { padding: 0 20px 20px 20px; display: flex; gap: 10px; }
+
+/* Menú Ajustes */
+.settings-section { margin-bottom: 24px; }
+.settings-section h3 { margin-bottom: 12px; color: var(--outline); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+.theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+.theme-btn { padding: 10px 4px; border-radius: 12px; border: 1px solid var(--outline); background: var(--surface); color: var(--on-surface); font-weight: bold; font-size: 12px; cursor: pointer; transition: 0.2s; }
+.theme-btn.active { background-color: var(--primary); color: white; border-color: var(--primary); }
+.dark-mode-toggle { display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--surface); border-radius: 16px; color: var(--on-bg); font-weight: bold; cursor: pointer; }
+.credits { text-align: center; margin-top: 30px; font-size: 13px; color: var(--outline); }
+
+/* Visor Pantalla Completa */
+.fullscreen-viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 400; align-items: center; justify-content: center; }
+.fullscreen-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 0.2s ease; cursor: zoom-out; }
+.close-fullscreen { position: absolute; top: 20px; right: 25px; color: white; font-size: 40px; font-weight: bold; cursor: pointer; z-index: 415; }
