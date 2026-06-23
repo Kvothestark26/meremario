@@ -86,6 +86,8 @@
             </select>
             <input type="text" id="tags-prenda" placeholder="Etiquetas (ej. fiesta, casual)" class="input-material">
             <input type="url" id="link-prenda" placeholder="Link de compra (opcional)" class="input-material">
+            <!-- Sección de comentarios añadida para prendas -->
+            <textarea id="comments-prenda" placeholder="Comentarios, localización, préstamo..." class="input-material" rows="3" style="resize: none; font-family: inherit; padding-top: 10px;"></textarea>
             <button class="btn-primary" id="btn-save-prenda" onclick="savePrenda()">Guardar Prenda</button>
         </div>
 
@@ -94,7 +96,7 @@
                 <div class="upload-box" onclick="document.getElementById('file-outfit').click()">
                     <span class="material-icons-round" id="icon-outfit">collections</span>
                     <p id="text-outfit">Subir fotos del Outfit</p>
-                    <input type="file" id="file-outfit" accept="image/*" multiple style="display:none;" onchange="previewImages(this, 'carousel-preview-outfit', 'icon-outfit', 'text-outfit', 'outfit')">
+                    <input type="file" id="file-outfit" accept="image/*" multiple style="display:none;" onchange="previewImages(this, 'carousel-preview-prenda', 'icon-outfit', 'text-outfit', 'outfit')">
                 </div>
                 <div id="carousel-preview-outfit" class="carousel-preview-container" style="display:none;"></div>
             </div>
@@ -128,6 +130,8 @@
                 <option value="Invierno">Invierno</option>
             </select>
             <input type="text" id="tags-outfit" placeholder="Etiquetas (ej. noche, formal)" class="input-material">
+            <!-- Sección de comentarios añadida para outfits -->
+            <textarea id="comments-outfit" placeholder="Comentarios, halagos, pensamientos... 😜" class="input-material" rows="3" style="resize: none; font-family: inherit; padding-top: 10px;"></textarea>
             <button class="btn-primary" id="btn-save-outfit" onclick="saveOutfit()">Guardar Outfit</button>
         </div>
     </main>
@@ -209,7 +213,7 @@
                     <span class="material-icons-round">download</span> Exportar Copia
                 </button>
             </div>
-            <div class="credits"><p><strong>Hecho con ❤️ para ti</strong></p><p><strong>Versión 3.0 - 2026</strong></p></div>
+            <div class="credits"><p><strong>Hecho con ❤️ para ti</strong></p><p><strong>Versión 3.1 - 2026</strong></p></div>
         </div>
     </div>
 

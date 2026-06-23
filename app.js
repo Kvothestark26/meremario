@@ -144,6 +144,7 @@ function handleFabClick(element) {
     else switchForm('prenda');
 }
 
+// --- ACTUALIZADO: Se cambió el id incorrecto del preview del input del outfit ---
 function switchForm(type) {
     document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
     const targetedBtn = document.getElementById(`toggle-${type}`);
@@ -362,6 +363,7 @@ function savePrenda(silent = false) {
     const season = document.getElementById('season-prenda').value;
     const tags = document.getElementById('tags-prenda').value;
     const link = document.getElementById('link-prenda').value;
+    const comments = document.getElementById('comments-prenda').value; // Captura de comentarios añadida
 
     if (!name || currentImgs.prenda.length === 0) {
         if(!silent) alert("Completa al menos el nombre y una foto.");
@@ -370,7 +372,7 @@ function savePrenda(silent = false) {
 
     const transaction = db.transaction(["clothes"], "readwrite");
     const store = transaction.objectStore("clothes");
-    const itemData = { name, type, color, season, tags, link, images: currentImgs.prenda };
+    const itemData = { name, type, color, season, tags, link, comments, images: currentImgs.prenda }; // Variable comments añadida
     
     if (editingId.prenda) itemData.id = editingId.prenda;
     store.put(itemData);
@@ -388,6 +390,7 @@ function saveOutfit(silent = false) {
     const occasion = document.getElementById('occasion-outfit').value;
     const season = document.getElementById('season-outfit').value;
     const tags = document.getElementById('tags-outfit').value;
+    const comments = document.getElementById('comments-outfit').value; // Captura de comentarios añadida
 
     if (!name || currentImgs.outfit.length === 0) {
         if(!silent) alert("Añade un nombre y tus fotos de outfit.");
@@ -396,7 +399,7 @@ function saveOutfit(silent = false) {
 
     const transaction = db.transaction(["outfits"], "readwrite");
     const store = transaction.objectStore("outfits");
-    const itemData = { name, occasion, season, tags, rating: currentOutfitRating, images: currentImgs.outfit, clothesIds: currentSelectedClothes };
+    const itemData = { name, occasion, season, tags, comments, rating: currentOutfitRating, images: currentImgs.outfit, clothesIds: currentSelectedClothes }; // Variable comments añadida
     
     if (editingId.outfit) itemData.id = editingId.outfit;
     store.put(itemData);
@@ -612,7 +615,8 @@ function openItemModal(item, type) {
     });
 
     if (type === 'clothes') {
-        details.innerHTML = `<h2>${item.name}</h2><p><strong>Tipo:</strong> ${item.type}</p><p><strong>Estación:</strong> ${item.season}</p><p><strong>Color:</strong> <span class="color-dot" style="background-color:${item.color}"></span></p><p><strong>Etiquetas:</strong> ${item.tags}</p>${item.link ? `<br><a href="${item.link}" target="_blank" class="btn-secondary" style="justify-content:center;">Abrir Link de Tienda</a>` : ''}`;
+        // Renderizado de comentarios inyectado de forma segura si existen
+        details.innerHTML = `<h2>${item.name}</h2><p><strong>Tipo:</strong> ${item.type}</p><p><strong>Estación:</strong> ${item.season}</p><p><strong>Color:</strong> <span class="color-dot" style="background-color:${item.color}"></span></p><p><strong>Etiquetas:</strong> ${item.tags}</p>${item.comments ? `<p><strong>Comentarios:</strong> ${item.comments}</p>` : ''}${item.link ? `<br><a href="${item.link}" target="_blank" class="btn-secondary" style="justify-content:center;">Abrir Link de Tienda</a>` : ''}`;
         const relatedOutfits = globalItems.outfits.filter(o => o.clothesIds && o.clothesIds.includes(item.id));
         if(relatedOutfits.length > 0) {
             relationsContainer.innerHTML = '<h4>Outfits en los que aparece esta prenda:</h4>';
@@ -627,7 +631,8 @@ function openItemModal(item, type) {
         }
     } else {
         const starsHtml = item.rating > 0 ? `<p style="color:#FFD700; font-size:20px;">${'★'.repeat(item.rating)}</p>` : '';
-        details.innerHTML = `${starsHtml}<h2>${item.name}</h2><p><strong>Ocasión:</strong> ${item.occasion}</p><p><strong>Estación:</strong> ${item.season}</p><p><strong>Etiquetas:</strong> ${item.tags||''}</p>`;
+        // Renderizado de comentarios inyectado de forma segura si existen
+        details.innerHTML = `${starsHtml}<h2>${item.name}</h2><p><strong>Ocasión:</strong> ${item.occasion}</p><p><strong>Estación:</strong> ${item.season}</p><p><strong>Etiquetas:</strong> ${item.tags||''}</p>${item.comments ? `<p><strong>Comentarios:</strong> ${item.comments}</p>` : ''}`;
         
         if(item.clothesIds && item.clothesIds.length > 0) {
             relationsContainer.innerHTML = '<h4>Prendas que componen este outfit:</h4>';
@@ -660,6 +665,7 @@ function editItem(item, type) {
     
     document.getElementById(`name-${type}`).value = item.name;
     document.getElementById(`season-${type}`).value = item.season || "";
+    document.getElementById(`comments-${type}`).value = item.comments || ""; // Recuperación de comentarios añadida
     
     if (type === 'prenda') {
         document.getElementById('type-prenda').value = item.type || "";
@@ -681,6 +687,7 @@ function editItem(item, type) {
 function resetForm(type) {
     editingId[type] = null; currentImgs[type] = [];
     document.getElementById(`name-${type}`).value = ""; document.getElementById(`season-${type}`).value = "";
+    document.getElementById(`comments-${type}`).value = ""; // Limpieza de comentarios añadida
     
     const previewBox = document.getElementById(`carousel-preview-${type}`);
     if(previewBox) { previewBox.innerHTML = ""; previewBox.style.display = 'none'; }
